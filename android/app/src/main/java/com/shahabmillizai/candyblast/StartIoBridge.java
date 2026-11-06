@@ -2,10 +2,6 @@ package com.shahabmillizai.candyblast;
 
 import android.webkit.JavascriptInterface;
 
-/**
- * JavaScript to Android native bridge for Start.io Ads SDK 5.4.0.
- * Injected into WebView under 'window.AndroidStartIo'.
- */
 public class StartIoBridge {
 
     private final MainActivity activity;
@@ -41,11 +37,11 @@ public class StartIoBridge {
 
     @JavascriptInterface
     public void showInterstitial(String reason) {
-        activity.runOnUiThread(() -> activity.showNativeInterstitial(reason));
+        activity.showNativeInterstitial(reason);
     }
 
     @JavascriptInterface
     public void showRewarded(String rewardType) {
-        activity.runOnUiThread(() -> activity.showNativeRewarded(rewardType));
+        activity.showNativeRewarded(rewardType);
     }
 }
