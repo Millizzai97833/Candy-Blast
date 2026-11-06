@@ -1,0 +1,23 @@
+#!/bin/sh
+
+#
+# Gradle wrapper script for POSIX systems
+#
+
+# Set default values for memory options
+DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+
+APP_BASE_NAME=`basename "$0"`
+APP_HOME="`pwd -P`"
+
+# Determine the Java command to use
+if [ -n "$JAVA_HOME" ] ; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+# Execute gradle-wrapper.jar or fallback
+exec "$JAVACMD" $DEFAULT_JVM_OPTS -jar "$CLASSPATH" "$@"

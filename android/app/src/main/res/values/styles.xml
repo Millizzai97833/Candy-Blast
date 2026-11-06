@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.CandyBlast" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@color/purple_candy</item>
+        <item name="android:statusBarColor">@color/purple_candy</item>
+        <item name="android:navigationBarColor">@color/purple_candy</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
+</resources>

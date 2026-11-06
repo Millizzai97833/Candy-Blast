@@ -1,0 +1,6 @@
+{
+  "name": "Candy Blast",
+  "description": "A delightful match-3 candy puzzle saga with juicy combos, special candies, levels, and Start.io ads integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
