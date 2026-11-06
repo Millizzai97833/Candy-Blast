@@ -1,7 +1,60 @@
 plugins {
-    id 'com.android.application' version '8.2.2' apply false
+    id 'com.android.application'
 }
 
-tasks.register('clean', Delete) {
-    delete rootProject.buildDir
+android {
+    namespace 'com.shahabmillizai.candyblast'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.shahabmillizai.candyblast"
+
+        minSdk 24
+        targetSdk 34
+
+        versionCode 1
+        versionName "1.0.0"
+
+        manifestPlaceholders = [
+            startIoAppId: "210945361"
+        ]
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+
+        release {
+            minifyEnabled true
+            shrinkResources true
+
+            proguardFiles getDefaultProguardFile(
+                'proguard-android-optimize.txt'
+            ), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.webkit:webkit:1.9.0'
+    implementation 'androidx.annotation:annotation:1.7.0'
+
+    implementation 'com.google.android.gms:play-services-appset:16.0.2'
+
+    // Start.io SDK
+    implementation 'com.startapp:inapp-sdk:5.4.0'
 }
