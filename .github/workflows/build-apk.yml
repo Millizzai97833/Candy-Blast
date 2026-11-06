@@ -1,150 +1,61 @@
-name: Build Candy Blast Release APK & AAB
+name: Build Candy Blast APK
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build Type'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
+
+permissions:
+  contents: read
 
 jobs:
-  build-web:
-    name: 🍭 1. Build Web Assets
+  build:
+    name: Build Candy Blast Android APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
-      - name: Build Web App
+      - name: Build game
         run: npm run build
 
-      - name: Upload Web Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-dist
-          path: dist/
-          retention-days: 1
+      - name: Verify web build
+        run: test -f dist/index.html
 
-  build-android:
-    name: 📱 2. Build Android Release APK & AAB
-    needs: build-web
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Web Build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-dist
-          path: dist
-
-      - name: Copy Web Dist into Android Assets
+      - name: Copy game into Android assets
         run: |
           mkdir -p android/app/src/main/assets/public
-          cp -r dist/* android/app/src/main/assets/public/
-          echo "Web assets successfully copied into Android project."
-          ls -la android/app/src/main/assets/public/
+          cp -r dist/. android/app/src/main/assets/public/
 
-      - name: Set up Java JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Make Gradle wrapper executable
-        run: |
-          chmod +x android/gradlew || true
+      - name: Setup Gradle 8.2.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2.1'
 
-      - name: Create Self-Signed Keystore for Store Release (if not provided in secrets)
-        working-directory: android
-        run: |
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "Generating self-signed release keystore for testing/publishing..."
-            keytool -genkeypair -v \
-              -keystore app/release.keystore \
-              -alias candyblast \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass candyblast123 \
-              -keypass candyblast123 \
-              -dname "CN=CandyBlast, OU=Games, O=CandyBlast, L=City, S=State, C=US"
-            echo "KEYSTORE_PASS=candyblast123" >> $GITHUB_ENV
-            echo "KEY_ALIAS=candyblast" >> $GITHUB_ENV
-            echo "KEY_PASS=candyblast123" >> $GITHUB_ENV
-          else
-            echo "Using production KEYSTORE_BASE64 from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
-            echo "KEYSTORE_PASS=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-            echo "KEY_PASS=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-          fi
+      - name: Build Debug APK
+        run: gradle -p android assembleDebug --stacktrace
 
-      - name: Build Release APK and Android App Bundle (AAB)
-        working-directory: android
-        env:
-          SIGNING_STORE_PASSWORD: ${{ env.KEYSTORE_PASS }}
-          SIGNING_KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ env.KEY_PASS }}
-        run: |
-          ./gradlew assembleRelease bundleRelease --stacktrace
-
-      - name: Upload Release APK Artifact
+      - name: Upload Candy Blast APK
         uses: actions/upload-artifact@v4
         with:
-          name: Candy-Blast-Release-APK
-          path: android/app/build/outputs/apk/release/*.apk
+          name: Candy-Blast-Debug-APK
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
-
-      - name: Upload Google Play Store Bundle (AAB)
-        uses: actions/upload-artifact@v4
-        with:
-          name: Candy-Blast-GooglePlay-AAB
-          path: android/app/build/outputs/bundle/release/*.aab
-          retention-days: 30
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/outputs/bundle/release/*.aab
-          name: "Candy Blast Release v1.0.0"
-          tag_name: "v1.0.0-${{ github.run_number }}"
-          body: |
-            # 🍬 Candy Blast - Release APK & AAB
-            
-            - **App ID (Start.io)**: `210945361`
-            - **Package Name**: `com.shahabmillizai.candyblast`
-            - **Start.io In-App SDK**: `5.4.0`
-            - **Target Platform**: Android 7.0+ (API Level 24 - 34)
-            
-            ### Included Builds:
-            - **Candy Blast APK**: Direct install on Android phones and tablets.
-            - **Candy Blast AAB**: Ready to upload to Google Play Console.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
