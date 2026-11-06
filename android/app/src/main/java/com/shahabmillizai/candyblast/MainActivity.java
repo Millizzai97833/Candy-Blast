@@ -10,10 +10,13 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
+
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.startapp.sdk.adsbase.Ad;
 import com.startapp.sdk.adsbase.StartAppAd;
 import com.startapp.sdk.adsbase.StartAppSDK;
+import com.startapp.sdk.adsbase.adlisteners.AdEventListener;
 import com.startapp.sdk.adsbase.adlisteners.VideoListener;
 import com.startapp.sdk.ads.banner.Banner;
 
@@ -22,134 +25,304 @@ public class MainActivity extends AppCompatActivity {
     public static final String STARTIO_APP_ID = "210945361";
 
     private WebView webView;
-    private RelativeLayout rootLayout;
     private FrameLayout bannerContainer;
     private Banner startIoBanner;
 
+    private boolean sdkReady = false;
+
     private StartAppAd interstitialAd;
     private StartAppAd rewardedAd;
-    private String pendingRewardType = "moves";
+
+    private boolean interstitialReady = false;
+    private boolean rewardedReady = false;
+
+    private boolean pendingInterstitial = false;
+    private String pendingRewardType = null;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 1. Initialize Start.io Ads SDK 5.4.0 with App ID 210945361
-        StartAppSDK.init(this, STARTIO_APP_ID, false);
-        StartAppAd.disableSplash();
+        createGameView();
+        initializeStartIo();
+    }
 
-        // 2. Preload Interstitial and Rewarded Ads
-        interstitialAd = new StartAppAd(this);
-        interstitialAd.loadAd(StartAppAd.AdMode.AUTOMATIC);
+    private void createGameView() {
 
-        rewardedAd = new StartAppAd(this);
-        preloadRewardedAd();
+        RelativeLayout root = new RelativeLayout(this);
 
-        // 3. Create Root Layout
-        rootLayout = new RelativeLayout(this);
-        rootLayout.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        // 4. Configure High-Performance WebView
         webView = new WebView(this);
-        RelativeLayout.LayoutParams webViewParams = new RelativeLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        );
-        webView.setLayoutParams(webViewParams);
+
+        RelativeLayout.LayoutParams webParams =
+                new RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                );
+
+        webView.setLayoutParams(webParams);
 
         WebSettings settings = webView.getSettings();
+
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
 
-        // Add JavaScript bridge for Start.io ads
-        webView.addJavascriptInterface(new StartIoBridge(this), "AndroidStartIo");
+        webView.addJavascriptInterface(
+                new StartIoBridge(this),
+                "AndroidStartIo"
+        );
 
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
 
-        rootLayout.addView(webView);
+        root.addView(webView);
 
-        // 5. Native Start.io Banner Container at Bottom
         bannerContainer = new FrameLayout(this);
-        RelativeLayout.LayoutParams bannerParams = new RelativeLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-        );
+
+        RelativeLayout.LayoutParams bannerParams =
+                new RelativeLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+
         bannerParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+
         bannerContainer.setLayoutParams(bannerParams);
 
-        rootLayout.addView(bannerContainer);
-        setContentView(rootLayout);
+        root.addView(bannerContainer);
 
-        // Load local bundled web game
+        setContentView(root);
+
         webView.loadUrl("file:///android_asset/public/index.html");
-
-        // Attach Banner
-        showNativeBanner();
     }
 
-    private void preloadRewardedAd() {
-        rewardedAd.setVideoListener(new VideoListener() {
-            @Override
-            public void onVideoCompleted() {
-                // Reward player in game!
-                runOnUiThread(() -> {
-                    String js = String.format("window.onStartIoRewardedCompleted && window.onStartIoRewardedCompleted('%s');", pendingRewardType);
-                    webView.evaluateJavascript(js, null);
-                });
-                preloadRewardedAd();
-            }
-        });
-        rewardedAd.loadAd(StartAppAd.AdMode.REWARDED_VIDEO);
+    private void initializeStartIo() {
+
+        StartAppSDK.initParams(this, STARTIO_APP_ID)
+                .setReturnAdsEnabled(false)
+                .setCallback(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        runOnUiThread(() -> {
+
+                            sdkReady = true;
+
+                            showNativeBanner();
+
+                            loadInterstitialAd();
+                            loadRewardedAd();
+
+                        });
+                    }
+                })
+                .init();
     }
+
+    // ---------------- BANNER ----------------
 
     public void showNativeBanner() {
-        if (startIoBanner == null) {
-            startIoBanner = new Banner(this);
-            bannerContainer.removeAllViews();
-            bannerContainer.addView(startIoBanner);
+
+        if (!sdkReady || bannerContainer == null) {
+            return;
         }
+
+        if (startIoBanner == null) {
+
+            startIoBanner = new Banner(this);
+
+            bannerContainer.removeAllViews();
+
+            bannerContainer.addView(
+                    startIoBanner,
+                    new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                    )
+            );
+        }
+
         bannerContainer.setVisibility(View.VISIBLE);
     }
 
     public void hideNativeBanner() {
+
         if (bannerContainer != null) {
             bannerContainer.setVisibility(View.GONE);
         }
     }
 
-    public void showNativeInterstitial(String reason) {
-        if (interstitialAd != null) {
-            interstitialAd.showAd();
-            interstitialAd.loadAd(StartAppAd.AdMode.AUTOMATIC);
+    // ---------------- INTERSTITIAL ----------------
+
+    private void loadInterstitialAd() {
+
+        if (!sdkReady) {
+            return;
         }
+
+        interstitialReady = false;
+
+        interstitialAd = new StartAppAd(this);
+
+        interstitialAd.loadAd(new AdEventListener() {
+
+            @Override
+            public void onReceiveAd(Ad ad) {
+
+                runOnUiThread(() -> {
+
+                    interstitialReady = true;
+
+                    if (pendingInterstitial) {
+                        pendingInterstitial = false;
+                        showLoadedInterstitial();
+                    }
+                });
+            }
+
+            @Override
+            public void onFailedToReceiveAd(Ad ad) {
+
+                interstitialReady = false;
+                pendingInterstitial = false;
+            }
+        });
+    }
+
+    private void showLoadedInterstitial() {
+
+        if (interstitialAd == null || !interstitialReady) {
+            return;
+        }
+
+        interstitialReady = false;
+
+        interstitialAd.showAd();
+
+        loadInterstitialAd();
+    }
+
+    public void showNativeInterstitial(String reason) {
+
+        runOnUiThread(() -> {
+
+            if (!sdkReady) {
+                return;
+            }
+
+            if (interstitialReady) {
+                showLoadedInterstitial();
+            } else {
+                pendingInterstitial = true;
+                loadInterstitialAd();
+            }
+        });
+    }
+
+    // ---------------- REWARDED VIDEO ----------------
+
+    private void loadRewardedAd() {
+
+        if (!sdkReady) {
+            return;
+        }
+
+        rewardedReady = false;
+
+        rewardedAd = new StartAppAd(this);
+
+        rewardedAd.loadAd(
+                StartAppAd.AdMode.REWARDED_VIDEO,
+                new AdEventListener() {
+
+                    @Override
+                    public void onReceiveAd(Ad ad) {
+
+                        runOnUiThread(() -> {
+
+                            rewardedReady = true;
+
+                            if (pendingRewardType != null) {
+                                showLoadedRewarded();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailedToReceiveAd(Ad ad) {
+
+                        rewardedReady = false;
+                        pendingRewardType = null;
+                    }
+                }
+        );
     }
 
     public void showNativeRewarded(String rewardType) {
-        this.pendingRewardType = rewardType;
-        if (rewardedAd != null && rewardedAd.isReady()) {
-            rewardedAd.showAd();
-        } else {
-            // Load and attempt show
-            preloadRewardedAd();
-            if (rewardedAd != null) {
-                rewardedAd.showAd();
+
+        runOnUiThread(() -> {
+
+            if (!sdkReady) {
+                return;
             }
-        }
+
+            pendingRewardType = rewardType;
+
+            if (rewardedReady) {
+                showLoadedRewarded();
+            } else {
+                loadRewardedAd();
+            }
+        });
     }
+
+    private void showLoadedRewarded() {
+
+        if (rewardedAd == null || !rewardedReady) {
+            return;
+        }
+
+        final String reward = pendingRewardType;
+
+        pendingRewardType = null;
+        rewardedReady = false;
+
+        rewardedAd.setVideoListener(new VideoListener() {
+
+            @Override
+            public void onVideoCompleted() {
+
+                runOnUiThread(() -> {
+
+                    if (webView != null) {
+
+                        String javascript =
+                                "window.onStartIoRewardedCompleted && " +
+                                "window.onStartIoRewardedCompleted('" +
+                                reward + "');";
+
+                        webView.evaluateJavascript(javascript, null);
+                    }
+
+                    loadRewardedAd();
+                });
+            }
+        });
+
+        rewardedAd.showAd();
+    }
+
+    // ---------------- LIFECYCLE ----------------
 
     @Override
     public void onBackPressed() {
+
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
@@ -160,12 +333,34 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (webView != null) webView.onResume();
+
+        if (webView != null) {
+            webView.onResume();
+        }
     }
 
     @Override
     protected void onPause() {
+        if (webView != null) {
+            webView.onPause();
+        }
+
         super.onPause();
-        if (webView != null) webView.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+
+        if (webView != null) {
+            webView.removeJavascriptInterface("AndroidStartIo");
+            webView.destroy();
+            webView = null;
+        }
+
+        if (bannerContainer != null) {
+            bannerContainer.removeAllViews();
+        }
+
+        super.onDestroy();
     }
 }
