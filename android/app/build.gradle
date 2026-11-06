@@ -1,3 +1,4 @@
+
 plugins {
     id 'com.android.application'
 }
@@ -13,42 +14,22 @@ android {
         versionCode 1
         versionName "1.0.0"
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
         manifestPlaceholders = [
             startIoAppId: "210945361"
         ]
     }
 
-    signingConfigs {
-        release {
-            if (System.getenv("SIGNING_STORE_PASSWORD") != null) {
-                storeFile file("release.keystore")
-                storePassword System.getenv("SIGNING_STORE_PASSWORD")
-                keyAlias System.getenv("SIGNING_KEY_ALIAS")
-                keyPassword System.getenv("SIGNING_KEY_PASSWORD")
-            } else if (file("release.keystore").exists()) {
-                storeFile file("release.keystore")
-                storePassword "candyblast123"
-                keyAlias "candyblast"
-                keyPassword "candyblast123"
-            }
-        }
-    }
-
     buildTypes {
+        debug {
+            debuggable true
+        }
+
         release {
             minifyEnabled true
             shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            
-            if (System.getenv("SIGNING_STORE_PASSWORD") != null || file("release.keystore").exists()) {
-                signingConfig signingConfigs.release
-            }
-        }
-        debug {
-            applicationIdSuffix ".debug"
-            debuggable true
+            proguardFiles getDefaultProguardFile(
+                'proguard-android-optimize.txt'
+            ), 'proguard-rules.pro'
         }
     }
 
@@ -65,15 +46,10 @@ android {
 }
 
 dependencies {
-    // AndroidX & UI
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.webkit:webkit:1.9.0'
     implementation 'androidx.annotation:annotation:1.7.0'
-
-    // Google Play Services AppSet (Required for Start.io)
     implementation 'com.google.android.gms:play-services-appset:16.0.2'
-
-    // Start.io In-App Ads SDK 5.4.0 (Official Dependency)
     implementation 'com.startapp:inapp-sdk:5.4.0'
 }
