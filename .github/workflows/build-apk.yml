@@ -3,6 +3,8 @@ name: Build Candy Blast APK
 on:
   push:
     branches: [main, master]
+  paths-ignore:
+    - 'README.md'
   workflow_dispatch:
 
 permissions:
@@ -10,14 +12,13 @@ permissions:
 
 jobs:
   build:
-    name: Build Candy Blast Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -25,13 +26,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build game
+      - name: Build web game
         run: npm run build
 
-      - name: Verify web build
+      - name: Verify web game
         run: test -f dist/index.html
 
-      - name: Copy game into Android assets
+      - name: Copy game to Android assets
         run: |
           mkdir -p android/app/src/main/assets/public
           cp -r dist/. android/app/src/main/assets/public/
@@ -45,7 +46,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Setup Gradle 8.2.1
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.2.1'
@@ -53,7 +54,7 @@ jobs:
       - name: Build Debug APK
         run: gradle -p android assembleDebug --stacktrace
 
-      - name: Upload Candy Blast APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Candy-Blast-Debug-APK
