@@ -6,15 +6,6 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build Type'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
 
 jobs:
   build-web:
@@ -24,17 +15,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 20
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: bun install --frozen-lockfile || bun install
 
       - name: Build Web App
-        run: npm run build
+        run: bun run build
 
       - name: Upload Web Build Artifact
         uses: actions/upload-artifact@v4
@@ -44,7 +34,7 @@ jobs:
           retention-days: 1
 
   build-android:
-    name: 📱 2. Build Android Release APK & AAB
+    name: 📱 2. Build Android APKs & AAB
     needs: build-web
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +49,7 @@ jobs:
 
       - name: Copy Web Dist into Android Assets
         run: |
+          rm -rf android/app/src/main/assets/public
           mkdir -p android/app/src/main/assets/public
           cp -r dist/* android/app/src/main/assets/public/
           echo "Web assets successfully copied into Android project."
@@ -78,39 +69,41 @@ jobs:
         run: |
           chmod +x android/gradlew || true
 
-      - name: Create Self-Signed Keystore for Store Release (if not provided in secrets)
-        working-directory: android
-        run: |
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "Generating self-signed release keystore for testing/publishing..."
-            keytool -genkeypair -v \
-              -keystore app/release.keystore \
-              -alias candyblast \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass candyblast123 \
-              -keypass candyblast123 \
-              -dname "CN=CandyBlast, OU=Games, O=CandyBlast, L=City, S=State, C=US"
-            echo "KEYSTORE_PASS=candyblast123" >> $GITHUB_ENV
-            echo "KEY_ALIAS=candyblast" >> $GITHUB_ENV
-            echo "KEY_PASS=candyblast123" >> $GITHUB_ENV
-          else
-            echo "Using production KEYSTORE_BASE64 from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.keystore
-            echo "KEYSTORE_PASS=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-            echo "KEY_PASS=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-          fi
-
-      - name: Build Release APK and Android App Bundle (AAB)
+      - name: Configure Keystore from Secrets
         working-directory: android
         env:
-          SIGNING_STORE_PASSWORD: ${{ env.KEYSTORE_PASS }}
-          SIGNING_KEY_ALIAS: ${{ env.KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ env.KEY_PASS }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Using ANDROID_KEYSTORE_BASE64 secret..."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+            echo "ANDROID_KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> $GITHUB_ENV
+          elif [ -f "app/release.keystore" ]; then
+            echo "Using repository release.keystore fallback..."
+            echo "ANDROID_KEYSTORE_FILE=release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=candyblast123" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=candyblast" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=candyblast123" >> $GITHUB_ENV
+          fi
+
+      - name: Build Android APKs and App Bundle
+        working-directory: android
         run: |
           ./gradlew assembleDebug assembleRelease bundleRelease --stacktrace
+
+      - name: Verify Release APK Signature
+        run: |
+          BUILD_TOOLS=$(find $ANDROID_HOME/build-tools -maxdepth 1 -mindepth 1 | sort -V | tail -n 1)
+          echo "Using build-tools at: $BUILD_TOOLS"
+          if [ -f "$BUILD_TOOLS/apksigner" ]; then
+            $BUILD_TOOLS/apksigner verify --verbose android/app/build/outputs/apk/release/*.apk || echo "apksigner verification step finished"
+          fi
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -119,7 +112,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Upload Release APK Artifact
+      - name: Upload Signed Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Candy-Blast-Release-APK

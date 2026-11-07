@@ -72,15 +72,35 @@ export const StartIoRewardedModal: React.FC<Props> = ({
         </p>
 
         <p className="text-yellow-300 text-sm mb-4">
-          {requested ? 'Waiting for the advertisement...' : 'Advertisement unavailable in browser mode.'}
+          {requested ? 'Waiting for Start.io native ad...' : 'Start.io Rewarded Video triggers natively on Android.'}
         </p>
 
-        <button
-          onClick={onClose}
-          className="w-full rounded-xl bg-pink-600 py-3 text-white font-bold"
-        >
-          Close
-        </button>
+        {!startIo.isNativeAndroid() ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                onRewardClaimed(rewardType);
+                onClose();
+              }}
+              className="flex-1 rounded-xl bg-green-600 hover:bg-green-500 py-3 text-white font-bold text-xs"
+            >
+              Claim Reward (Preview)
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-xl bg-white/20 hover:bg-white/30 px-4 py-3 text-white font-bold text-xs"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onClose}
+            className="w-full rounded-xl bg-pink-600 py-3 text-white font-bold"
+          >
+            Close
+          </button>
+        )}
 
       </div>
 
